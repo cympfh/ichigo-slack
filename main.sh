@@ -59,7 +59,6 @@ while :; do
 EOM
         cat /tmp/ichigo.slack.payload
         curl -X POST --data @/tmp/ichigo.slack.payload "$SLACK_WEB_HOOK"
-        break
     done
 
     sleep 30
