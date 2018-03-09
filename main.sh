@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MENU_URL=http://menu.2ch.net/bbsmenu.html
+MENU_URL=http://2ch.sc/bbsmenu.html
 BDNAME="ニュー速VIP"
 THNAME="苺ましまろ"
 
@@ -23,7 +23,7 @@ get-thread() {
 
 html-trim() {
     sed 's,<div>,,g; s,</div>,,g; s,<span>,,g; s,</span>,,g' |
-    sed 's/<a href[^>]*>//g; s,</a>,,g'
+    sed 's/<a[^>]*>//g; s,</a>,,g'
 }
 
 html-unescape() {
@@ -31,35 +31,52 @@ html-unescape() {
 }
 
 get-body() {
-    curl -sL "$(get-thread)" | nkf |
-    sed 's/<div class="post"/\n&/g' | grep '^<div class="post"' | sed 's/<div class="push".*//g' |
-    sed 's;<div class="post" id="\([0-9]*\)" data-date="[0-9]*" data-userid="ID:\([^"]*\)" data-id="[0-9]*"><div class="meta"><span class="number">[0-9]*</span><span class="name"><b>.*</b></span><span class="date">[^<]*</span><span class="uid">ID:[^<]*</span></div><div class="message"><span class="escaped"> \(.*\)$;{"number": \1, "id": "\2", "text": "\3"};g' |
-    html-trim > /tmp/ichigo.body
-    cat /tmp/ichigo.body | wc -l > /tmp/ichigo.lines
+    curl -sL "$1" | nkf |
+        grep '^<dt>' |
+        sed 's/^.* ID:\(.*\).net<dd> \(.*\) <br><br>$/\1\t\2/g' |
+        html-trim | html-unescape
 }
 
 source ./config.sh
 
+LAST_THREAD=
+[ -f /tmp/ichigo.thread ] && LAST_THREAD=$(cat /tmp/ichigo.thread)
 LAST_LINES=0
 [ -f /tmp/ichigo.lines ] && LAST_LINES=$(cat /tmp/ichigo.lines)
+echo "Last Session: ${LAST_THREAD} ${LAST_LINES}"
 
 while :; do
 
-    get-body
+    # previous thread & lines
+    TH_URL=$(get-thread)
+    if [ $LAST_THREAD != $TH_URL ]; then
+        echo "Thread Moved: $TH_URL"
+        LAST_LINES=0
+    else
+        LAST_LINES=$(cat /tmp/ichigo.lines)
+    fi
+
+    # get content
+    get-body "${TH_URL}" > /tmp/ichigo.body
+    echo "${TH_URL}" > /tmp/ichigo.thread
+    cat /tmp/ichigo.body | wc -l > /tmp/ichigo.lines
+    echo "Body: $(cat /tmp/ichigo.lines) lines"
+
+    # new
     tail -n +$((LAST_LINES + 1)) /tmp/ichigo.body |
     while read line; do
-        echo "$line" >/tmp/ichigo.line
+        ID=${line%	*}
+        TEXT=${line#*	}
         cat <<EOM >/tmp/ichigo.slack.payload
 {
     "channel": "#ichigo",
     "icon_emoji": ":strawberry:",
-    "username": "$(jq -r .id /tmp/ichigo.line)",
-    "text": "$(jq -r .text /tmp/ichigo.line | sed 's/<br>/\n/g')"
+    "username": "${ID}",
+    "text": "$(echo ${TEXT} | sed 's/<br>/\\n/g')"
 }
 EOM
         cat /tmp/ichigo.slack.payload
         curl -X POST --data @/tmp/ichigo.slack.payload "$SLACK_WEB_HOOK"
-        break
     done
 
     sleep 30
