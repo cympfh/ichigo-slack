@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MENU_URL=http://2ch.sc/bbsmenu.html
+MENU_URL=http://menu.2ch.net/bbsmenu.html
 BDNAME="ニュー速VIP"
 THNAME="苺ましまろ"
 
@@ -32,8 +32,9 @@ html-unescape() {
 
 get-body() {
     curl -sL "$1" | nkf |
-        grep '^<dt>' |
-        sed 's/^.* ID:\(.*\).net<dd> \(.*\) <br><br>$/\1\t\2/g' |
+        sed 's/<div class="post"/\n&/g' | grep '^<div class="post"' | sed 's/<div class="push".*//g' |
+        sed 's,<div class="post" id="\([0-9]*\)" data-date="[0-9]*" data-userid="ID:\([^"]*\)" data-id="[0-9]*"><div class="meta"><span class="number">[0-9]*</span><span class="name"><b>.*</b></span><span class="date">\([^<]*\)</span><span class="uid">ID:[^<]*</span></div><div class="message"><span class="escaped">,\2\t,g' |
+        sed 's/<br>$//g' |
         html-trim | html-unescape
 }
 
@@ -49,7 +50,7 @@ while :; do
 
     # previous thread & lines
     TH_URL=$(get-thread)
-    if [ $LAST_THREAD != $TH_URL ]; then
+    if [ "$LAST_THREAD" != "$TH_URL" ]; then
         echo "Thread Moved: $TH_URL"
         LAST_LINES=0
     else
@@ -72,7 +73,7 @@ while :; do
     "channel": "#ichigo",
     "icon_emoji": ":strawberry:",
     "username": "${ID}",
-    "text": "$(echo ${TEXT} | sed 's/<br>/\\n/g')"
+    "text": "$(echo ${TEXT} | sed 's/ *<br> */\\n/g')"
 }
 EOM
         cat /tmp/ichigo.slack.payload
