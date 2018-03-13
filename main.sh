@@ -17,7 +17,7 @@ get-thread() {
     DOM=$(echo "$BD_URL" | cut -d '/' -f 3) ## *.2ch.net
     BID=$(echo "$BD_URL" | cut -d '/' -f 4) ## news4vip
     SUBJECT_URL="${BD_URL}subject.txt"
-    TID=$(curl -s "$SUBJECT_URL" | nkf | grep "<>${THNAME} " | cut -d'<' -f1 | cut -d '.' -f1)
+    TID=$(curl -s "$SUBJECT_URL" | nkf | grep "<>${THNAME} " | cut -d'<' -f1 | cut -d '.' -f1 | head -1)
     echo "http://${DOM}/test/read.cgi/${BID}/${TID}"
 }
 
