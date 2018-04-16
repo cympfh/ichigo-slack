@@ -31,7 +31,8 @@ get-thread() {
 # get content and helpers
 html-trim() {
     sed 's,<div>,,g; s,</div>,,g; s,<span>,,g; s,</span>,,g' |
-    sed 's/<a[^>]*>//g; s,</a>,,g'
+    sed 's/<a[^>]*>//g; s,</a>,,g' |
+    sed 's/>>/:point_right:/g'
 }
 
 html-unescape() {
