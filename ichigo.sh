@@ -4,6 +4,7 @@ MENU_URL=http://menu.2ch.net/bbsmenu.html
 BDNAME="ニュー速VIP"
 THNAME="苺ましまろ"
 SESSION_FILE=/tmp/ichigo.session
+HISTORY_FILE=/tmp/ichigo.history
 
 if [ ! -f ./config.sh ]; then
     echo "Not found config.sh"
@@ -33,6 +34,16 @@ html-trim() {
     sed 's,<div>,,g; s,</div>,,g; s,<span>,,g; s,</span>,,g' |
     sed 's/<a[^>]*>//g; s,</a>,,g' |
     sed 's/>>/:point_right:/g'
+}
+
+# check in the HISTORY_FILE
+is-old-thread () {
+    URL="$1"
+    if [ -f "$HISTORY_FILE" ]; then
+        grep "^${URL}$" "$HISTORY_FILE"
+    else
+        false
+    fi
 }
 
 html-unescape() {
@@ -93,9 +104,17 @@ while :; do
 
     # get new session
     TH_URL=$(get-thread)
+
+    if is-old-thread "$TH_URL"; then
+        echo "Thread Moving..."
+        sleep 300
+        continue
+    fi
+
     if [ "$LAST_TH_URL" != "$TH_URL" ]; then
         echo "Thread Moved: $TH_URL"
-        slack-post-info "Thread Moved: $TH_URL"
+        slack-post-info "Thread Moved: $LAST_TH_URL => $TH_URL"
+        echo "$LAST_TH_URL" >> "$HISTORY_FILE"
         LAST_LINES=0
     fi
 
@@ -108,7 +127,8 @@ while :; do
         ID=${line%	*}
         TEXT=${line#*	}
         ICON=$(get-icon "$ID")
-        slack-post "$ICON" "$ID" "$TEXT"
+        echo "$TEXT" | grep "http" >/dev/null && \
+            slack-post "$ICON" "$ID" "$TEXT"
     done
 
     # save new session
