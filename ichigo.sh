@@ -5,12 +5,19 @@ BDNAME="ニュー速VIP"
 THNAME="苺ましまろ"
 SESSION_FILE=/tmp/ichigo.session
 HISTORY_FILE=/tmp/ichigo.history
+IMAGES_FILE=/tmp/ichigo.images.hisotry
 
 if [ ! -f ./config.sh ]; then
     echo "Not found config.sh"
     exit 1
 fi
 source ./config.sh
+
+if [ ! -f $IMAGES_FILE ]; then
+    cat <<EOM >$IMAGES_FILE
+# Image url list, been posted
+EOM
+fi
 
 # get board url of VIP
 get-board() {
@@ -32,15 +39,24 @@ get-thread() {
 # get content and helpers
 html-trim() {
     sed 's,<div>,,g; s,</div>,,g; s,<span>,,g; s,</span>,,g' |
-    sed 's/<a[^>]*>//g; s,</a>,,g' |
-    sed 's/>>/:point_right:/g'
+    sed 's/<a[^>]*>//g; s,</a>,,g'
 }
 
 # check in the HISTORY_FILE
-is-old-thread () {
+is-old-thread() {
     URL="$1"
     if [ -f "$HISTORY_FILE" ]; then
         grep "^${URL}$" "$HISTORY_FILE"
+    else
+        false
+    fi
+}
+
+# check in the IMAGES_FILE
+is-duplicate-images() {
+    URL="$1"
+    if [ -f "$IMAGES_FILE" ]; then
+        grep "$URL" "$IMAGES_FILE"
     else
         false
     fi
@@ -56,6 +72,15 @@ get-body() {
         sed 's,<div class="post" id="\([0-9]*\)" data-date="[0-9]*" data-userid="ID:\([^"]*\)" data-id="[0-9]*"><div class="meta"><span class="number">[0-9]*</span><span class="name"><b>.*</b></span><span class="date">\([^<]*\)</span><span class="uid">ID:[^<]*</span></div><div class="message"><span class="escaped">,\2\t,g' |
         sed 's/ *<br> *$//g' |
         html-trim | html-unescape
+}
+
+text-split() {
+    sed 's/<br>/\n/g' |
+    sed 's/^ *//g; s/ *$//g'
+}
+
+text-join() {
+    sed 's/$/<br>/g' | tr -d '\n' | sed 's/<br>$//g'
 }
 
 # icons for slack
@@ -127,8 +152,22 @@ while :; do
         ID=${line%	*}
         TEXT=${line#*	}
         ICON=$(get-icon "$ID")
-        echo "$TEXT" | grep "http" >/dev/null && \
+
+        # filter to unique http lines
+        TEXT=$(
+            echo "$TEXT" |
+                text-split |
+                grep http |
+                while read line; do
+                    is-duplicate-images "$line" >/dev/null || echo "$line"
+                done |
+                text-join
+        )  # uniq
+
+        if [ ! -z "$TEXT" ]; then
+            echo "$TEXT" >> "$IMAGES_FILE"
             slack-post "$ICON" "$ID" "$TEXT"
+        fi
     done
 
     # save new session
